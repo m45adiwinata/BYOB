@@ -1,0 +1,388 @@
+<html>
+    <head>
+        <title>Klasifikasi Jamur</title>
+        <script>
+            var target = [];
+            var features = [];
+            var hiddenLayers;
+            var outputLayer;
+            var Class;
+            function learn() {
+                //NORMALISASI FITUR DAN TARGET
+                if(features.length > 0) {
+                    // for(var i=0;i<target.length;i++) {
+                    //     var flag = 0;
+                    //     for(var k=0;k<key.length;k++) {
+                    //         if(target[i] == key[k]) {
+                    //             flag++;
+                    //             target[i] = k;
+                    //             break;
+                    //         }
+                    //     }
+                    //     if (flag == 0) {
+                    //         key.push(target[i]);
+                    //         target[i] = key.length-1;
+                    //     }
+                    // }
+                    
+                    
+                    
+                    let jumlahLayer = document.getElementById("hlayer").value;
+                    if (jumlahLayer > 0) {
+                        hiddenLayers = [];
+                        //INISIASI BOBOT SECARA RANDOM
+                        for(var k=0;k<jumlahLayer; k++) {
+                            var jumlahNode = document.getElementById("hlayer_"+k).value;
+                            outputLayer = [Array(jumlahNode)];
+                            var layer = [];
+                            for (let j = 0; j < jumlahNode; j++) {
+                                var bobot = [];
+                                if (k == 0) {
+                                    for(var i=0;i<features[0].length;i++) {
+                                        bobot.push(Math.random());
+                                    }
+                                } else {
+                                    for(var i=0;i<hiddenLayers[k-1].length;i++) {
+                                        bobot.push(Math.random());
+                                    }
+                                }
+                                layer.push(bobot);
+                                outputLayer[0][j] = Math.random();
+                            }
+                            hiddenLayers.push(layer);
+                        }
+                        outputLayer = transposeMatrix(outputLayer);
+                        // console.log(hiddenLayers);
+                        // console.log(outputLayer);
+                        // console.log("========================================");
+
+                        var mean = 0.5;
+                        var epoh = 0;
+                        var tolerance = document.getElementById("tolerance").value;
+                        tolerance /= 10000;
+
+                        while ((mean > tolerance && mean < 1) && epoh < 60000) {
+                            var ff = [];
+                            ff.push(nonlin(multiplyMatrix(features,transposeMatrix(hiddenLayers[0]))));
+                            for (let i = 1; i < hiddenLayers.length; i++) {
+                                ff.push(nonlin(multiplyMatrix(ff[i-1], transposeMatrix(hiddenLayers[i]))));
+                            }
+                            // console.log("feed forward: ");
+                            // console.log(ff);
+                            // console.log("========================================");
+                            var output = nonlin(multiplyMatrix(ff[ff.length-1], outputLayer));
+                            // console.log("output: ");
+                            // console.log("========================================");
+                            var err = subsMatrix(output,target);
+                            mean = 0;
+                            for (let i = 0; i < err.length; i++) {
+                                mean += Math.abs(err[i]);
+                            }
+                            mean /= err.length;
+                            if (epoh % 10000 == 0) {
+                                console.log("Error: "+mean);
+                            }
+                            // console.log("========================================");
+                            var outputDelta = multiplyMatrix(err,nonlin(output, deriv=true));
+                            
+                            // console.log("Ouput delta: ");
+                            // console.log(outputDelta);
+                            // console.log("========================================");
+                            var ffLastError = multiplyMatrix(outputDelta, transposeMatrix(outputLayer));
+                            
+                            // console.log("Feed forward last error: ");
+                            // console.log(ffLastError);
+                            // console.log("========================================");
+                            var ffLastDelta = multiplyMatrix(ffLastError,nonlin(ff[ff.length-1]));
+                            // console.log("Feed forward last delta: ");
+                            // console.log(ffLastDelta);
+                            // console.log("========================================");
+                            var ffDelta = Array(ff.length-1);
+                            for(let i=ffDelta.length-1;i>=0;i--) {
+                                if (i == ffDelta.length-1) {
+                                    let ffError = multiplyMatrix(ffLastDelta, hiddenLayers[i+1]);
+                                    ffDelta[i] = multiplyMatrix(ffError, nonlin(ff[i]));
+                                } else {
+                                    let ffError = multiplyMatrix(ffDelta[i+1], hiddenLayers[i+1]);
+                                    ffDelta[i] = multiplyMatrix(ffError, nonlin(ff[i]));
+                                }
+                            }
+                            // console.log("Feed forward deltas: ");
+                            // console.log(ffDelta);
+                            // console.log("========================================");
+
+                            // console.log(outputLayer);
+                            outputLayer = addMatrix(outputLayer, multiplyMatrix(transposeMatrix(ff[ff.length-1]), outputDelta));
+                            // console.log("New output layer weight: ");
+                            // console.log(outputLayer);
+                            // console.log("========================================");
+                            // for (let i = 0; i < hiddenLayers.length; i++) {
+                            //     console.log(hiddenLayers[i]);
+                            // }
+                            if (hiddenLayers.length == 1) {
+                                hiddenLayers[hiddenLayers.length-1] = addMatrix(hiddenLayers[hiddenLayers.length-1] , multiplyMatrix(transposeMatrix(ffLastDelta),features));
+                            } else {
+                                hiddenLayers[hiddenLayers.length-1] = addMatrix(hiddenLayers[hiddenLayers.length-1] , multiplyMatrix(transposeMatrix(ffLastDelta),ff[ff.length-2]));
+                                for(let i=hiddenLayers.length-2;i>0;i--) {
+                                    hiddenLayers[i] = addMatrix(hiddenLayers[i], multiplyMatrix(transposeMatrix(ffDelta[i]),ff[i-1]));
+                                }
+                                hiddenLayers[0] = addMatrix(hiddenLayers[0] , multiplyMatrix(transposeMatrix(ffDelta[0]),features));
+                            }
+                            // console.log("New hidden layer weight: ");
+                            // console.log(hiddenLayers);
+                            // console.log("========================================");
+                            epoh++;
+                        }
+                        console.log("Total epoh: "+epoh);
+                        console.log("Final error: "+mean);
+                        document.getElementById("readyUse").innerHTML += '<button onclick="classify()">Compute</button>';
+                    } else {
+                        alert("masukkan setidaknya 1 layer aja sahabat".toUpperCase());
+                    }
+                }
+                else {
+                    alert("import dataset dulu sahabat".toUpperCase());
+                }
+            }
+
+            function nonlin(x, deriv=false) {
+                if (deriv == true) {
+                    for(var i=0;i<x.length;i++) {
+                        if (x[i].length != undefined) {
+                            for(var j=0;j<x[i].length;j++) {
+                                x[i][j]*=(1-x[i][j]);
+                            }
+                        }
+                        else {
+                            x[i]*=(1-x[i]);
+                        }
+                    }
+                } else {
+                    for(var i=0;i<x.length;i++) {
+                        if (x[i].length != undefined) {
+                            for(var j=0;j<x[i].length;j++) {
+                                x[i][j]=1/(1+Math.exp(-x[i][j]));
+                            }
+                        }
+                        else {
+                            x[i]=1/(1+Math.exp(-x[i]));
+                        }
+                    }
+                }
+                return(x);
+            }
+            
+            function multiplyMatrix(x,y) {
+                if(x.length == y.length && x[0].length == y[0].length) {
+                    for (let i = 0; i < x.length; i++) {
+                        for (let j = 0; j < x[0].length; j++) {
+                            x[i][j] *= y[i][j];
+                        }
+                    }
+                    return(x);
+                }
+                else {
+                    if(x[0].length != y.length) {
+                        return(console.log("ORDO MATRIKSNYA ERROR, PERKALIAN GAGAL SAHABAT"));
+                    }
+                    else if(x[0].length == 1 && y.length == 1) {
+                        var result = [];
+                        for (let i = 0; i < x.length; i++) {
+                            result.push([]);
+                            for (let j = 0; j < y[0].length; j++) {
+                                result[i].push(0);
+                            }
+                        }
+                        for (let i = 0; i < result.length; i++) {
+                            for (let j = 0; j < result[0].length; j++) {    
+                                result[i][j] = x[i][0]*y[0][j];
+                            }
+                        }
+                        return(result);
+                    }
+                    else {
+                        var result = [];
+                        for (let i = 0; i < x.length; i++) {
+                            result.push([]);
+                            for (let j = 0; j < y[0].length; j++) {
+                                result[i].push(0);
+                            }
+                        }
+                        for (let i = 0; i < result.length; i++) {
+                            for (let j = 0; j < result[0].length; j++) {
+                                for (let k = 0; k < y.length; k++) {
+                                    result[i][j] += x[i][k]*y[k][j];
+                                }
+                            }
+                        }
+                        return(result);
+                    }
+                }
+                
+            }
+
+            function transposeMatrix(x) {
+                var y = [];
+                for (let i = 0; i < x[0].length; i++) {
+                    y.push(Array(x.length));
+                }
+                for (let i = 0; i < y.length; i++) {
+                    for (let j = 0; j < x.length; j++) {
+                        y[i][j] = x[j][i];
+                    }
+                }
+                return(y);
+            }
+
+            function addMatrix(x,y) {
+                if(x.length == y.length && x[0].length == y[0].length) {
+                    for (let i = 0; i < x.length; i++) {
+                        for (let j = 0; j < x[0].length; j++) {
+                            y[i][j] += x[i][j];
+                        }
+                    }
+                    return(y);
+                }
+                else {
+                    return(console.log("ADD MATRIKS ERROR, ORDO MATRIKS TIDAK SAMA."));
+                }
+            }
+
+            function subsMatrix(x,y) {
+                let result = [];
+                for (let i = 0; i < x.length; i++) {
+                    result.push([0]);
+                }
+                if(x.length == y.length && x[0].length == y[0].length) {
+                    for (let i = 0; i < x.length; i++) {
+                        for (let j = 0; j < x[0]; j++) {
+                            result[i][j] = y[i][j] - x[i][j];
+                        }
+                    }
+                    return(result);
+                }
+                else {
+                    return(console.log("SUBSTRACT MATRIKS ERROR, ORDO MATRIKS TIDAK SAMA."));
+                }
+            }
+
+            function classify() {
+                let ciri = Array(features[0].length);
+                for (let i = 0; i < ciri.length; i++) {
+                    ciri[i] = Number(document.getElementById("feature"+i).value);
+                }
+                var input = [ciri];
+                console.log(input);
+                let ff = nonlin(multiplyMatrix(input, transposeMatrix(hiddenLayers[0])));
+                for (let i = 1; i < hiddenLayers.length; i++) {
+                    ff = nonlin(multiplyMatrix(ff, transposeMatrix(hiddenLayers[i])));
+                }
+                let output = nonlin(multiplyMatrix(ff, outputLayer));
+                console.log(output);
+                console.log(Class[Math.round(output[0][0])]);
+            }
+        </script>
+    </head>
+    <body>
+        <h1>Klasifikasi Jamur Beracun/Tidak dengan Backpropagation</h1>
+        <input type="file" id="files" name="files[]"/>
+        <br>
+        <br>
+        <table>
+            <tr>
+                <td>jumlah hidden layer: </td>
+                <td><input type="number" id="hlayer" style="width:33%;"></td>
+            </tr>
+            <tr>
+                <td>toleransi error (/10k): </td>
+                <td><input type="number" id="tolerance" style="width:33%;"></td>
+            </tr>
+        </table>
+        <div id="hlayer_nodes"></div><br>
+        <button onclick="learn()">Learning</button>
+        <div id="readyUse">
+            <table id="fiturInput"></table>
+        </div>
+        <script>
+            document.getElementById('files').onchange = function(){
+
+                var file = this.files[0];
+
+                var reader = new FileReader();
+                reader.onload = function(progressEvent){
+                    var data = this.result.split('\n');
+                    for(var i = 0; i < data.length; i++){
+                        var vector = data[i].split(",");
+                        var feature = [];
+                        target.push([vector[0]]);
+                        for(var j=1;j<data[0].length;j++) {
+                            if(vector[j] == undefined) {
+                                break;
+                            }
+                            feature.push(vector[j])
+                        }
+                        features.push(feature);
+                    }
+
+                    var key;
+                    document.getElementById("fiturInput").innerHTML += '<tr id="featureName">';
+                    for (let i = 0; i < features[0].length; i++) {
+                        document.getElementById("featureName").innerHTML += '<th>Fitur '+(i+1)+'</th>';
+                    }
+                    document.getElementById("fiturInput").innerHTML += '</tr>';
+                    document.getElementById("fiturInput").innerHTML += '<tr id="featureVal">';
+                    for(var i=0;i<features[0].length;i++) {
+                        key = [];
+                        document.getElementById("featureVal").innerHTML += '<td><select id="feature'+i+'"></select></td>';
+                        for(var j=0;j<features.length;j++) {
+                            var flag = 0;
+                            for(var k=0;k<key.length;k++) {
+                                if(features[j][i] == key[k]) {
+                                    flag++;
+                                    features[j][i] = k;
+                                    break;
+                                }
+                            }
+                            if(flag == 0) {
+                                key.push(features[j][i]);
+                                features[j][i] = key.length-1;
+                                document.getElementById("feature"+i).innerHTML += '<option value="'+features[j][i]+'">'+key[key.length-1]+'</option>';
+                            }
+                        }
+                    }
+                    document.getElementById("fiturInput").innerHTML += '</tr>';
+                    
+                    for(var i=0;i<target[0].length;i++) {
+                        key = [];
+                        for(var j=0;j<target.length;j++) {
+                            var flag = 0;
+                            for(var k=0;k<key.length;k++) {
+                                if(target[j][i] == key[k]) {
+                                    flag++;
+                                    target[j][i] = k;
+                                    break;
+                                }
+                            }
+                            if(flag == 0) {
+                                key.push(target[j][i]);
+                                target[j][i] = key.length-1;
+                            }
+                        }
+                    }
+                    console.log(target);
+                    Class = key;
+                };
+                reader.readAsText(file);
+                
+            }
+            
+            document.getElementById('hlayer').onchange = function() {
+                var layer = document.getElementById('hlayer').value;
+                document.getElementById("hlayer_nodes").innerHTML = "jumlah node masing-masing layer<br>";
+                for(var i=0;i<layer;i++) {
+                    document.getElementById("hlayer_nodes").innerHTML += '<input type="number" id="hlayer_'+i+'" value=1>';
+                }
+            }
+        </script>
+    </body>
+</html>
